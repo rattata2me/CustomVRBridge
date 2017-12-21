@@ -1,2 +1,2 @@
 # CustomVRBridge
-Custom Steam Driver for Customized VR controllers
+Custom Steam Driver for homemade VR controllers
