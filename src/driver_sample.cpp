@@ -150,7 +150,6 @@ class CSampleDeviceDriver : public vr::ITrackedDeviceServerDriver, public vr::IV
 public:
 	CSampleDeviceDriver(  )
 	{
-		DriverLog( "U DED M8\n" );
 		m_unObjectId = vr::k_unTrackedDeviceIndexInvalid;
 		m_ulPropertyContainer = vr::k_ulInvalidPropertyContainer;
 
@@ -444,11 +443,6 @@ void CServerDriver_Sample::RunFrame()
 //-----------------------------------------------------------------------------
 HMD_DLL_EXPORT void *HmdDriverFactory( const char *pInterfaceName, int *pReturnCode )
 {
-system("mkdir /home/rattata/file.txt");		
-		FILE *f = fopen("/home/rattata/file.txt", "w");
-		const char *text = "Write this to the file";
-		fprintf(f, "Some text: %s\n", text);
-		fclose(f);
 	if( 0 == strcmp( IServerTrackedDeviceProvider_Version, pInterfaceName ) )
 	{
 		return &g_serverDriverNull;
@@ -458,9 +452,8 @@ system("mkdir /home/rattata/file.txt");
 		return &g_watchdogDriverNull;
 	}
 
-	if( pReturnCode ){
-		*pReturnCode = VRInitError_Init_InterfaceNotFound;		
-	}
-	
+	if( pReturnCode )
+		*pReturnCode = VRInitError_Init_InterfaceNotFound;
+
 	return NULL;
 }
