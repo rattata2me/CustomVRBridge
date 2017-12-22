@@ -52,7 +52,7 @@ inline void HmdMatrix_SetIdentity( HmdMatrix34_t *pMatrix )
 
 
 // keys for use with the settings API
-static const char * const k_pch_Sample_Section = "driver_sample";
+static const char * const k_pch_Sample_Section = "driver_custom";
 static const char * const k_pch_Sample_SerialNumber_String = "serialNumber";
 static const char * const k_pch_Sample_ModelNumber_String = "modelNumber";
 static const char * const k_pch_Sample_WindowX_Int32 = "windowX";
@@ -138,7 +138,7 @@ void CWatchdogDriver_Sample::Cleanup()
 		m_pWatchdogThread = nullptr;
 	}
 
-	CleanupDriverLog();
+	//CleanupDriverLog();
 }
 
 
@@ -172,13 +172,13 @@ public:
 		m_flSecondsFromVsyncToPhotons = vr::VRSettings()->GetFloat( k_pch_Sample_Section, k_pch_Sample_SecondsFromVsyncToPhotons_Float );
 		m_flDisplayFrequency = vr::VRSettings()->GetFloat( k_pch_Sample_Section, k_pch_Sample_DisplayFrequency_Float );
 
-		DriverLog( "driver_null: Serial Number: %s\n", m_sSerialNumber.c_str() );
-		DriverLog( "driver_null: Model Number: %s\n", m_sModelNumber.c_str() );
-		DriverLog( "driver_null: Window: %d %d %d %d\n", m_nWindowX, m_nWindowY, m_nWindowWidth, m_nWindowHeight );
-		DriverLog( "driver_null: Render Target: %d %d\n", m_nRenderWidth, m_nRenderHeight );
-		DriverLog( "driver_null: Seconds from Vsync to Photons: %f\n", m_flSecondsFromVsyncToPhotons );
-		DriverLog( "driver_null: Display Frequency: %f\n", m_flDisplayFrequency );
-		DriverLog( "driver_null: IPD: %f\n", m_flIPD );
+		DriverLog( "driver_custom: Serial Number: %s\n", m_sSerialNumber.c_str() );
+		DriverLog( "driver_custom: Model Number: %s\n", m_sModelNumber.c_str() );
+		DriverLog( "driver_custom: Window: %d %d %d %d\n", m_nWindowX, m_nWindowY, m_nWindowWidth, m_nWindowHeight );
+		DriverLog( "driver_custom: Render Target: %d %d\n", m_nRenderWidth, m_nRenderHeight );
+		DriverLog( "driver_custom: Seconds from Vsync to Photons: %f\n", m_flSecondsFromVsyncToPhotons );
+		DriverLog( "driver_custom: Display Frequency: %f\n", m_flDisplayFrequency );
+		DriverLog( "driver_custom: IPD: %f\n", m_flIPD );
 	}
 
 	virtual ~CSampleDeviceDriver()

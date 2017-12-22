@@ -75,7 +75,7 @@ set(OUTPUT_NAME custom_driver)
 add_library(${OUTPUT_NAME} SHARED
   ${SOURCE_DIR}/driverlog.cpp
   ${SOURCE_DIR}/driverlog.h
-  ${SOURCE_DIR}/driver_sample.cpp)
+  ${SOURCE_DIR}/driver_custom.cpp)
 
 add_definitions(-DDRIVER_SAMPLE_EXPORTS)
 
