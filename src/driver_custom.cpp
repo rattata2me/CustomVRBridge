@@ -3,10 +3,11 @@
 //········FILE BASED ON "driver_sample.h" FROM Valve Corporation·········································//
 //········https://github.com/ValveSoftware/openvr/blob/master/samples/driver_sample/driver_sample.cpp···//
 //········Edited/Made by rattata2me····································································//
-//····································································································//
+//·······························································thx to @r57zone······················//
 
 #include <thread>
 #include <chrono>
+#include <cmath>
 
 #include <openvr_driver.h>
 #include "driverlog.h"
@@ -23,25 +24,6 @@ using namespace vr;
 #else
 #error "Unsupported Platform."
 #endif
-
-//Driver function
-HMD_DLL_EXPORT void *HmdDriverFactory( const char *pInterfaceName, int *pReturnCode )
-{
-	if( 0 == strcmp( IServerTrackedDeviceProvider_Version, pInterfaceName ) )
-	{
-		return &customDriverNull;
-	}
-	if( 0 == strcmp( IVRWatchdogProvider_Version, pInterfaceName ) )
-	{
-		return &watchDog;
-	}
-
-	if( pReturnCode )
-		*pReturnCode = VRInitError_Init_InterfaceNotFound;
-
-	return NULL;
-}
-
 
 
 inline HmdQuaternion_t HmdQuaternion_Init( double w, double x, double y, double z )
@@ -174,7 +156,8 @@ static const char * const k_pch_Sample_DebugMode_Bool = "DebugMode";
 
 
 class CustomDeviceDriver : public vr::ITrackedDeviceServerDriver, public vr::IVRDisplayComponent{
-	
+
+public:
 	//Construction method
 	CustomDeviceDriver(){
 		
@@ -207,8 +190,258 @@ class CustomDeviceDriver : public vr::ITrackedDeviceServerDriver, public vr::IVR
 		m_fZoomWidth = vr::VRSettings()->GetFloat(k_pch_Sample_Section, k_pch_Sample_ZoomWidth_Float);
 		m_fZoomHeight = vr::VRSettings()->GetFloat(k_pch_Sample_Section, k_pch_Sample_ZoomHeight_Float);
 		m_bDebugMode = vr::VRSettings()->GetBool(k_pch_Sample_Section, k_pch_Sample_DebugMode_Bool);
+		
+		DriverLog("Custom Driver Succesfully set");
 	}
 	
 	virtual ~CustomDeviceDriver(){
 	}
+	
+	virtual EVRInitError Activate(vr::TrackedDeviceIndex_t unObjectId){
+	  
+	m_unObjectId = unObjectId;
+	m_ulPropertyContainer = vr::VRProperties()->TrackedDeviceToPropertyContainer(m_unObjectId);
+	
+	vr::VRProperties()->SetStringProperty(m_ulPropertyContainer, Prop_ModelNumber_String, m_sModelNumber.c_str());
+	vr::VRProperties()->SetStringProperty(m_ulPropertyContainer, Prop_RenderModelName_String, m_sModelNumber.c_str());
+	vr::VRProperties()->SetFloatProperty(m_ulPropertyContainer, Prop_UserIpdMeters_Float, m_flIPD);
+	vr::VRProperties()->SetFloatProperty(m_ulPropertyContainer, Prop_UserHeadToEyeDepthMeters_Float, 0.f);
+	vr::VRProperties()->SetFloatProperty(m_ulPropertyContainer, Prop_DisplayFrequency_Float, m_flDisplayFrequency);
+	vr::VRProperties()->SetFloatProperty(m_ulPropertyContainer, Prop_SecondsFromVsyncToPhotons_Float, m_flSecondsFromVsyncToPhotons);
+	
+	vr::VRProperties()->SetUint64Property(m_ulPropertyContainer, Prop_CurrentUniverseId_Uint64, 2);
+	
+	vr::VRProperties()->SetBoolProperty(m_ulPropertyContainer, Prop_IsOnDesktop_Bool, false);
+	
+	return VRInitError_None;
+	
+	}
+	virtual void Deactivate(){
+		m_unObjectId = vr::k_unTrackedDeviceIndexInvalid;
+	  
+	}
+	
+	//TODO Do something
+	virtual void EnterStandby()
+	{}
+	
+	void *GetComponent(const char *pchComponentNameAndVersion){
+	  if ( !_stricmp( pchComponentNameAndVersion, vr::IVRDisplayComponent_Version ) )
+		
+		{
+			return (vr::IVRDisplayComponent*)this;
+		}
+		
+		return NULL;
+	}
+	
+	virtual void PowerOff(){}
+	
+	virtual void DebugRequest(const char *pchRequest, char *pchResponseBuffer, uint32_t unResponseBufferSize) 
+	{
+		if(unResponseBufferSize >= 1)
+			pchResponseBuffer[0] = 0;
+	  
+	}
+	
+	virtual void GetWindowBounds( int32_t *pnX, int32_t *pnY, uint32_t *pnWidth, uint32_t *pnHeight ) 
+	{
+		*pnX = m_nWindowX;
+		*pnY = m_nWindowY;
+		*pnWidth = m_nWindowWidth;
+		*pnHeight = m_nWindowHeight;
+	}
+	
+	virtual bool IsDisplayOnDesktop() 
+	{
+		return true;
+	}
+	
+	virtual bool IsDisplayRealDisplay() 
+	{
+		return false;
+	}
+	
+	virtual void GetRecommendedRenderTargetSize( uint32_t *pnWidth, uint32_t *pnHeight ) 
+	{
+		*pnWidth = m_nRenderWidth;
+		*pnHeight = m_nRenderHeight;
+	}
+	
+	virtual void GetEyeOutputViewport(EVREye eEye, uint32_t *pnX, uint32_t *pnY, uint32_t *pnWidth, uint32_t *pnHeight) 
+	{
+		*pnY = 0;
+		*pnWidth = m_nWindowWidth / 2;
+		*pnHeight = m_nWindowHeight;
+	
+		if ( eEye == Eye_Left )
+		{
+			*pnX = 0;
+		}
+		else
+		{
+			*pnX = m_nWindowWidth / 2;
+		}
+	}
+	
+	virtual void GetProjectionRaw(EVREye eEye, float *pfLeft, float *pfRight, float *pfTop, float *pfBottom) 
+	{
+		*pfLeft = -1.0;
+		*pfRight = 1.0;
+		*pfTop = -1.0;
+		*pfBottom = 1.0;  
+	}
+	
+	//Taken from https://github.com/HelenXR/openvr_survivor/blob/master/src/head_mount_display_device.cc
+	virtual DistortionCoordinates_t ComputeDistortion( EVREye eEye, float fU, float fV ) 
+	{
+		DistortionCoordinates_t coordinates;
+
+		
+		float hX;
+		float hY;
+		double rr;
+		double r2;
+		double theta;
+
+		rr = sqrt((fU - 0.5f)*(fU - 0.5f) + (fV - 0.5f)*(fV - 0.5f));
+		r2 = rr * (1 + m_fDistortionK1*(rr*rr) + m_fDistortionK2*(rr*rr*rr*rr));
+		theta = atan2(fU - 0.5f, fV - 0.5f);
+		hX = sin(theta)*r2*m_fZoomWidth;
+		hY = cos(theta)*r2*m_fZoomHeight;
+
+		coordinates.rfBlue[0] = hX + 0.5f;
+		coordinates.rfBlue[1] = hY + 0.5f;
+		coordinates.rfGreen[0] = hX + 0.5f;
+		coordinates.rfGreen[1] = hY + 0.5f;
+		coordinates.rfRed[0] = hX + 0.5f;
+		coordinates.rfRed[1] = hY + 0.5f;
+
+
+		return coordinates;
+	}
+	
+	virtual DriverPose_t GetPose() 
+	{
+		DriverPose_t pose = { 0 };
+		pose.poseIsValid = true;
+		pose.result = TrackingResult_Running_OK;
+		pose.deviceIsConnected = true;
+
+		pose.qWorldFromDriverRotation = HmdQuaternion_Init( 1, 0, 0, 0 );
+		pose.qDriverFromHeadRotation = HmdQuaternion_Init( 1, 0, 0, 0 );
+		
+
+		return pose;
+	}
+
+	void RunFrame(){
+		//TODO finish this
+		// In a real driver, this should happen from some pose tracking thread.
+		// The RunFrame interval is unspecified and can be very irregular if some other
+		// driver blocks it for some periodic task.
+		if ( m_unObjectId != vr::k_unTrackedDeviceIndexInvalid )
+		{
+			vr::VRServerDriverHost()->TrackedDevicePoseUpdated( m_unObjectId, GetPose(), sizeof( DriverPose_t ) );
+		}
+	}
+	
+	std::string GetSerialNumber() const { return m_sSerialNumber; }
+	
+private:
+	vr::TrackedDeviceIndex_t m_unObjectId;
+	vr::PropertyContainerHandle_t m_ulPropertyContainer;
+
+	std::string m_sSerialNumber;
+	std::string m_sModelNumber;
+
+	int32_t m_nWindowX;
+	int32_t m_nWindowY;
+	int32_t m_nWindowWidth;
+	int32_t m_nWindowHeight;
+	int32_t m_nRenderWidth;
+	int32_t m_nRenderHeight;
+	float m_flSecondsFromVsyncToPhotons;
+	float m_flDisplayFrequency;
+	float m_flIPD;
+	float m_fDistortionK1;
+	float m_fDistortionK2;
+	float m_fZoomWidth;
+	float m_fZoomHeight;
+	bool m_bDebugMode;
+};
+
+
+
+//==============================================================================//
+//·········CUSTOM Server driver················································//
+//============================================================================//
+
+class CustomServerDriver: public IServerTrackedDeviceProvider{
+ 
+public:
+	CustomServerDriver()
+		: m_pNullHmdLatest(NULL)
+		, m_bEnableNullDriver(false){
+	  
+	}
+	virtual EVRInitError Init( vr::IVRDriverContext *pDriverContext ) ;
+	virtual void Cleanup();
+	virtual const char * const *GetInterfaceVersions(){ return vr::k_InterfaceVersions; }
+	virtual void RunFrame();
+	virtual bool ShouldBlockStandbyMode(){ return false; }
+	virtual void EnterStandby(){}
+	virtual void LeaveStandby(){} 
+	
+	
+private:
+	CustomDeviceDriver *m_pNullHmdLatest;
+	bool m_bEnableNullDriver;
+};
+
+CustomServerDriver customDriverNull;
+
+
+EVRInitError CustomServerDriver::Init( vr::IVRDriverContext *pDriverContext )
+{
+	VR_INIT_SERVER_DRIVER_CONTEXT( pDriverContext );
+	InitDriverLog(vr::VRDriverLog());
+
+	m_pNullHmdLatest = new CustomDeviceDriver();
+	vr::VRServerDriverHost()->TrackedDeviceAdded( m_pNullHmdLatest->GetSerialNumber().c_str(), vr::TrackedDeviceClass_HMD, m_pNullHmdLatest );
+	return VRInitError_None;
+}
+
+void CustomServerDriver::Cleanup() 
+{
+	delete m_pNullHmdLatest;
+	m_pNullHmdLatest = NULL;
+}
+
+
+void CustomServerDriver::RunFrame()
+{
+	if ( m_pNullHmdLatest )
+	{
+		m_pNullHmdLatest->RunFrame();
+	}
+}
+
+
+//Driver function
+HMD_DLL_EXPORT void *HmdDriverFactory( const char *pInterfaceName, int *pReturnCode )
+{
+	if( 0 == strcmp( IServerTrackedDeviceProvider_Version, pInterfaceName ) )
+	{
+		return &customDriverNull;
+	}
+	if( 0 == strcmp( IVRWatchdogProvider_Version, pInterfaceName ) )
+	{
+		return &watchDog;
+	}
+
+	if( pReturnCode )
+		*pReturnCode = VRInitError_Init_InterfaceNotFound;
+
+	return NULL;
 }
